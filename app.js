@@ -54,8 +54,7 @@ const data = [
       { en: "Where is the bathroom?", gr: "Πού είναι η τουαλέτα;", pr: "poo EE-neh ee too-ah-LEH-tah" },
       { en: "I'm looking for...", gr: "Ψάχνω για...", pr: "PSAKH-noh yah" },
       { en: "Turn left / right", gr: "Στρίψε αριστερά / δεξιά", pr: "STREEP-seh ah-rees-teh-RAH / dhek-see-AH" },
-      { en: "Straight ahead", gr: "Ευθεία", pr: "ef-THEE-ah" },
-      { en: "Where is the bathroom?", gr: "Πού είναι η τουαλέτα;", pr: "poo EE-neh ee too-ah-LEH-tah" }
+      { en: "Straight ahead", gr: "Ευθεία", pr: "ef-THEE-ah" }
     ]
   },
   {
@@ -234,9 +233,11 @@ function copyPronunciation(text, btn) {
   });
 }
 
-// ========== SPEECH SYNTHESIS ==========
+// ========== SPEECH SYNTHESIS (IMPROVED) ==========
 function loadVoices() {
   voices = speechSynthesis.getVoices();
+
+  // Find Greek voice (handles both "el-GR" and Android "el_GR")
   greekVoice = voices.find(v => {
     const lang = (v.lang || "").replace("_", "-").toLowerCase();
     return lang === "el-gr" || lang === "el";
@@ -244,22 +245,30 @@ function loadVoices() {
     const lang = (v.lang || "").replace("_", "-").toLowerCase();
     return lang.startsWith("el");
   }) || null;
+
+  // Optional: log for debugging
+  // console.log("Voices loaded:", voices.length, "| Greek voice:", greekVoice ? greekVoice.name : "NONE");
 }
 
 if (ttsSupported) {
   loadVoices();
-  if (speechSynthesis.onvoiceschanged !== undefined) {
-    speechSynthesis.onvoiceschanged = loadVoices;
-  }
+  speechSynthesis.addEventListener("voiceschanged", loadVoices);
+  // Extra retries for Chrome
+  setTimeout(loadVoices, 250);
+  setTimeout(loadVoices, 1000);
 }
 
 function speakGreek(text, btn) {
   if (!ttsSupported) {
-    alert("Text-to-speech is not supported in this browser.");
+    alert("Text-to-speech is not supported in this browser.\nPlease try Chrome, Edge, Safari or Firefox.");
     return;
   }
 
+  // Stop any current speech
   speechSynthesis.cancel();
+
+  // Refresh voices just in case
+  loadVoices();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "el-GR";
@@ -271,10 +280,15 @@ function speakGreek(text, btn) {
     utterance.voice = greekVoice;
   }
 
+  // Visual feedback
   if (btn) {
     btn.textContent = "⏹️";
     btn.classList.add("speaking");
   }
+
+  utterance.onstart = () => {
+    // console.log("Speech started");
+  };
 
   utterance.onend = () => {
     if (btn) {
@@ -289,8 +303,11 @@ function speakGreek(text, btn) {
       btn.textContent = "🔊";
       btn.classList.remove("speaking");
     }
+
     if (e.error === "language-unavailable" || e.error === "voice-unavailable") {
-      alert("No Greek voice available on this device. Try another browser or install a Greek TTS voice.");
+      alert("No Greek voice available on this device.\n\nTry:\n• Installing a Greek TTS voice in your system settings\n• Using Chrome or Edge\n• Checking that volume is turned up");
+    } else if (e.error === "not-allowed") {
+      alert("Speech was blocked. Please click somewhere on the page first, then try again.");
     }
   };
 
@@ -330,13 +347,14 @@ function showTtsStatus() {
   }
 
   setTimeout(() => {
+    loadVoices();
     if (!greekVoice) {
       const warn = document.createElement("div");
       warn.className = "tts-warning";
-      warn.textContent = "No Greek voice detected on this device. Speech may use a fallback voice or fail.";
+      warn.innerHTML = "⚠️ No Greek voice detected on this device. Speech may not work well.<br>Install a Greek TTS voice in your system settings for best results.";
       document.querySelector("header").appendChild(warn);
     }
-  }, 800);
+  }, 1200);
 }
 
 // ========== RENDER ==========
@@ -400,6 +418,7 @@ function render() {
     main.appendChild(section);
   });
 
+  // Event listeners
   main.querySelectorAll(".fav-btn").forEach(btn => {
     btn.addEventListener("click", () => toggleFavorite(btn.dataset.en));
   });
