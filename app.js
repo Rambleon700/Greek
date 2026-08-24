@@ -631,3 +631,4 @@ createRateControl();
 showTtsStatus();
 renderNav();
 render();
+initVoiceInput();
