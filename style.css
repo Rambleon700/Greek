@@ -18,6 +18,51 @@ body.light {
   --border: #e2e8f0;
   --fav: #d97706;
 }
+:root {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --border: #334155;
+  --fav: #fbbf24;
+  --success: #22c55e;
+}
+
+body.light {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #0284c7;
+  --border: #e2e8f0;
+  --fav: #d97706;
+}
+
+/* ========== NEW: EN → GR toggle ========== */
+.en-gr-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.en-gr-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ========== Rest of your existing CSS below ========== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  ...
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
