@@ -159,6 +159,158 @@ const data = [
   }
 ];
 
+// ========== VOICE INPUT + TRANSLATE (Option B) ==========
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognitionSupported = !!SpeechRecognition;
+
+let recognition = null;
+let isListening = false;
+
+function initVoiceInput() {
+  const micBtn = document.getElementById("mic-btn");
+  const statusEl = document.getElementById("voice-status");
+  const resultBox = document.getElementById("voice-result");
+  const englishHeard = document.getElementById("english-heard");
+  const greekResult = document.getElementById("greek-result");
+  const speakResultBtn = document.getElementById("speak-result-btn");
+  const clearResultBtn = document.getElementById("clear-result-btn");
+
+  if (!recognitionSupported) {
+    statusEl.textContent = "Speech recognition not supported in this browser (try Chrome or Edge)";
+    micBtn.disabled = true;
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 3;
+  recognition.continuous = false;
+
+  micBtn.addEventListener("click", () => {
+    if (isListening) {
+      recognition.stop();
+      return;
+    }
+    startListening();
+  });
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add("listening");
+    micBtn.textContent = "⏹️";
+    statusEl.textContent = "Listening... speak now";
+    resultBox.classList.remove("show");
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+    if (!englishHeard.textContent) {
+      statusEl.textContent = "Tap the mic and speak an English phrase";
+    }
+  };
+
+  recognition.onerror = (e) => {
+    console.warn("Recognition error:", e.error);
+    statusEl.textContent = e.error === "no-speech" 
+      ? "No speech detected. Try again." 
+      : "Error: " + e.error;
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+  };
+
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    statusEl.textContent = "Processing...";
+
+    englishHeard.textContent = transcript;
+    resultBox.classList.add("show");
+
+    // 1. Try to match against existing phrases first (Option B)
+    const match = findBestPhraseMatch(transcript);
+
+    if (match) {
+      greekResult.textContent = match.gr;
+      statusEl.textContent = "Matched existing phrase ✓";
+    } else {
+      // 2. Fallback to MyMemory translation
+      try {
+        const translated = await translateWithMyMemory(transcript);
+        greekResult.textContent = translated || "Translation failed";
+        statusEl.textContent = "Translated with MyMemory";
+      } catch (err) {
+        console.error(err);
+        greekResult.textContent = "Translation error";
+        statusEl.textContent = "Could not translate. Check internet connection.";
+      }
+    }
+  };
+
+  // Speak the Greek result
+  speakResultBtn.addEventListener("click", () => {
+    const greek = greekResult.textContent;
+    if (greek && greek !== "Translation failed" && greek !== "Translation error") {
+      speakPhrase("", greek, speakResultBtn);
+    }
+  });
+
+  clearResultBtn.addEventListener("click", () => {
+    resultBox.classList.remove("show");
+    englishHeard.textContent = "";
+    greekResult.textContent = "";
+    statusEl.textContent = "Tap the mic and speak an English phrase";
+  });
+}
+
+function startListening() {
+  try {
+    recognition.start();
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// Fuzzy match against existing phrases
+function findBestPhraseMatch(spoken) {
+  const spokenLower = spoken.toLowerCase().replace(/[?.!,]/g, "").trim();
+  
+  let bestMatch = null;
+  let bestScore = 0;
+
+  data.forEach(cat => {
+    cat.phrases.forEach(p => {
+      const enLower = p.en.toLowerCase().replace(/[?.!,]/g, "").trim();
+      
+      // Exact or contains match
+      if (enLower === spokenLower || enLower.includes(spokenLower) || spokenLower.includes(enLower)) {
+        const score = Math.min(enLower.length, spokenLower.length) / Math.max(enLower.length, spokenLower.length);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = p;
+        }
+      }
+    });
+  });
+
+  // Only accept reasonably good matches
+  return bestScore > 0.45 ? bestMatch : null;
+}
+
+// Free MyMemory translation (no API key needed)
+async function translateWithMyMemory(text) {
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|el`;
+  const res = await fetch(url);
+  const data = await res.json();
+  
+  if (data.responseStatus === 200 && data.responseData) {
+    return data.responseData.translatedText;
+  }
+  throw new Error("Translation failed");
+}
+
 // ========== STATE ==========
 let activeCategory = "All";
 let showFavoritesOnly = false;
