@@ -233,11 +233,10 @@ function copyPronunciation(text, btn) {
   });
 }
 
-// ========== SPEECH SYNTHESIS (IMPROVED) ==========
+// ========== SPEECH SYNTHESIS ==========
 function loadVoices() {
   voices = speechSynthesis.getVoices();
 
-  // Find Greek voice (handles both "el-GR" and Android "el_GR")
   greekVoice = voices.find(v => {
     const lang = (v.lang || "").replace("_", "-").toLowerCase();
     return lang === "el-gr" || lang === "el";
@@ -245,76 +244,88 @@ function loadVoices() {
     const lang = (v.lang || "").replace("_", "-").toLowerCase();
     return lang.startsWith("el");
   }) || null;
-
-  // Optional: log for debugging
-  // console.log("Voices loaded:", voices.length, "| Greek voice:", greekVoice ? greekVoice.name : "NONE");
 }
 
 if (ttsSupported) {
   loadVoices();
   speechSynthesis.addEventListener("voiceschanged", loadVoices);
-  // Extra retries for Chrome
   setTimeout(loadVoices, 250);
   setTimeout(loadVoices, 1000);
 }
 
-function speakGreek(text, btn) {
+function speakPhrase(english, greek, btn) {
   if (!ttsSupported) {
     alert("Text-to-speech is not supported in this browser.\nPlease try Chrome, Edge, Safari or Firefox.");
     return;
   }
 
-  // Stop any current speech
   speechSynthesis.cancel();
-
-  // Refresh voices just in case
   loadVoices();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "el-GR";
-  utterance.rate = speechRate;
-  utterance.pitch = 1;
-  utterance.volume = 1;
+  const speakEnglishFirst = document.getElementById("en-gr-toggle")?.checked || false;
 
-  if (greekVoice) {
-    utterance.voice = greekVoice;
+  function makeUtterance(text, lang, voice = null) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = speechRate;
+    u.pitch = 1;
+    u.volume = 1;
+    if (voice) u.voice = voice;
+    return u;
   }
 
-  // Visual feedback
   if (btn) {
     btn.textContent = "⏹️";
     btn.classList.add("speaking");
   }
 
-  utterance.onstart = () => {
-    // console.log("Speech started");
-  };
-
-  utterance.onend = () => {
+  const finish = () => {
     if (btn) {
       btn.textContent = "🔊";
       btn.classList.remove("speaking");
     }
   };
 
-  utterance.onerror = (e) => {
-    console.warn("Speech error:", e.error);
-    if (btn) {
-      btn.textContent = "🔊";
-      btn.classList.remove("speaking");
-    }
+  if (speakEnglishFirst && english) {
+    // Speak English first, then Greek
+    const enUtterance = makeUtterance(english, "en-US");
 
-    if (e.error === "language-unavailable" || e.error === "voice-unavailable") {
-      alert("No Greek voice available on this device.\n\nTry:\n• Installing a Greek TTS voice in your system settings\n• Using Chrome or Edge\n• Checking that volume is turned up");
-    } else if (e.error === "not-allowed") {
-      alert("Speech was blocked. Please click somewhere on the page first, then try again.");
-    }
-  };
+    enUtterance.onend = () => {
+      setTimeout(() => {
+        const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
+        grUtterance.onend = finish;
+        grUtterance.onerror = (e) => {
+          console.warn("Greek speech error:", e.error);
+          finish();
+        };
+        speechSynthesis.speak(grUtterance);
+      }, 350);
+    };
 
-  speechSynthesis.speak(utterance);
+    enUtterance.onerror = () => {
+      // Fallback: just speak Greek
+      const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
+      grUtterance.onend = finish;
+      speechSynthesis.speak(grUtterance);
+    };
+
+    speechSynthesis.speak(enUtterance);
+  } else {
+    // Only Greek
+    const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
+    grUtterance.onend = finish;
+    grUtterance.onerror = (e) => {
+      console.warn("Speech error:", e.error);
+      finish();
+      if (e.error === "language-unavailable" || e.error === "voice-unavailable") {
+        alert("No Greek voice available on this device.");
+      }
+    };
+    speechSynthesis.speak(grUtterance);
+  }
 }
 
-// ========== RATE CONTROL ==========
+// ========== RATE CONTROL + EN→GR TOGGLE ==========
 function createRateControl() {
   const container = document.createElement("div");
   container.className = "rate-control";
@@ -322,18 +333,31 @@ function createRateControl() {
     <span>Speed</span>
     <input type="range" id="rate-slider" min="0.6" max="1.3" step="0.05" value="${speechRate}">
     <span class="rate-value" id="rate-value">${speechRate.toFixed(2)}×</span>
+    
+    <label class="en-gr-toggle" title="Speak English first, then Greek">
+      <input type="checkbox" id="en-gr-toggle">
+      <span>EN → GR</span>
+    </label>
   `;
 
   const searchEl = document.getElementById("search");
   searchEl.parentNode.insertBefore(container, searchEl.nextSibling);
 
+  // Rate slider
   const slider = document.getElementById("rate-slider");
   const valueLabel = document.getElementById("rate-value");
-
   slider.addEventListener("input", () => {
     speechRate = parseFloat(slider.value);
     valueLabel.textContent = speechRate.toFixed(2) + "×";
     localStorage.setItem("greek-speech-rate", speechRate);
+  });
+
+  // EN → GR toggle (saved)
+  const enGrToggle = document.getElementById("en-gr-toggle");
+  enGrToggle.checked = localStorage.getItem("greek-en-gr") === "true";
+
+  enGrToggle.addEventListener("change", () => {
+    localStorage.setItem("greek-en-gr", enGrToggle.checked);
   });
 }
 
@@ -351,7 +375,7 @@ function showTtsStatus() {
     if (!greekVoice) {
       const warn = document.createElement("div");
       warn.className = "tts-warning";
-      warn.innerHTML = "⚠️ No Greek voice detected on this device. Speech may not work well.<br>Install a Greek TTS voice in your system settings for best results.";
+      warn.innerHTML = "⚠️ No Greek voice detected. Speech may not work well on this device.";
       document.querySelector("header").appendChild(warn);
     }
   }, 1200);
@@ -409,7 +433,7 @@ function render() {
             ${isFavorite(p.en) ? "★" : "☆"}
           </button>
           <button class="copy-btn" title="Copy pronunciation" data-pr="${p.pr}">📋</button>
-          <button class="speak-btn" title="Speak Greek" data-gr="${p.gr}" ${!ttsSupported ? "disabled" : ""}>🔊</button>
+          <button class="speak-btn" title="Speak" data-gr="${p.gr}" ${!ttsSupported ? "disabled" : ""}>🔊</button>
         </div>
       `;
       section.appendChild(div);
@@ -434,7 +458,10 @@ function render() {
         btn.textContent = "🔊";
         btn.classList.remove("speaking");
       } else {
-        speakGreek(btn.dataset.gr, btn);
+        const card = btn.closest(".phrase");
+        const english = card.querySelector(".english").textContent;
+        const greek = btn.dataset.gr;
+        speakPhrase(english, greek, btn);
       }
     });
   });
