@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Greek Phrasebook – everyday phrases with pronunciation and speech" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Greek Phrasebook</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1>🇬🇷 Greek Phrasebook</h1>
+      <div class="header-actions">
+        <button id="theme-toggle" title="Toggle dark/light mode" aria-label="Toggle theme">🌙</button>
+        <button id="fav-filter" title="Show favorites only" aria-label="Favorites">⭐</button>
+      </div>
+    </div>
+    <p class="subtitle">Everyday phrases with pronunciation</p>
+    <input type="search" id="search" placeholder="Search phrases..." autocomplete="off" />
+  </header>
+
+  <nav id="categories"></nav>
+
+  <main id="phrases"></main>
+
+  <footer>
+    <p>Stress the CAPS syllable · γ before a/o/ou ≈ soft “gh”</p>
+    <p>Tip: Greeks often tilt head up for “no” (όχι) — listen for the word</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(() => console.log('Service Worker registered'))
+        .catch(err => console.log('SW registration failed:', err));
+    }
+  </script>
+</body>
+</html>
