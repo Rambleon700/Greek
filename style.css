@@ -18,27 +18,27 @@ body.light {
   --border: #e2e8f0;
   --fav: #d97706;
 }
-:root {
-  --bg: #0f172a;
-  --card: #1e293b;
-  --text: #f1f5f9;
-  --muted: #94a3b8;
-  --accent: #38bdf8;
-  --border: #334155;
-  --fav: #fbbf24;
-  --success: #22c55e;
+
+/* EN → GR toggle */
+.en-gr-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
 }
 
-body.light {
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --text: #0f172a;
-  --muted: #64748b;
-  --accent: #0284c7;
-  --border: #e2e8f0;
-  --fav: #d97706;
+.en-gr-toggle input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
-/* ===== Voice Input / Live Translate ===== */
+
+/* Voice Input Section */
 .voice-section {
   max-width: 720px;
   margin: 1rem auto;
@@ -142,31 +142,7 @@ body.light .voice-result .greek-result {
   border-color: var(--accent);
 }
 
-/* ========== NEW: EN → GR toggle ========== */
-.en-gr-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-left: 0.8rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.en-gr-toggle input {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-/* ========== Rest of your existing CSS below ========== */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  ...
-
+/* ===== Base styles ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -242,20 +218,21 @@ h1 { font-size: 1.6rem; }
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }
 
-/* Rate control */
 .rate-control {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   margin: 0.75rem auto 0;
-  max-width: 420px;
+  max-width: 480px;
   font-size: 0.9rem;
   color: var(--muted);
+  flex-wrap: wrap;
 }
 
 .rate-control input[type="range"] {
   flex: 1;
+  min-width: 100px;
   accent-color: var(--accent);
 }
 
