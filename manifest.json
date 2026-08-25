@@ -1,7 +1,7 @@
 {
   "name": "Greek Phrasebook",
   "short_name": "Greek Phrases",
-  "description": "Everyday Greek phrases with pronunciation and speech",
+  "description": "Everyday Greek phrases with pronunciation, speech synthesis and voice translation",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",
