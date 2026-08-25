@@ -159,158 +159,6 @@ const data = [
   }
 ];
 
-// ========== VOICE INPUT + TRANSLATE (Option B) ==========
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognitionSupported = !!SpeechRecognition;
-
-let recognition = null;
-let isListening = false;
-
-function initVoiceInput() {
-  const micBtn = document.getElementById("mic-btn");
-  const statusEl = document.getElementById("voice-status");
-  const resultBox = document.getElementById("voice-result");
-  const englishHeard = document.getElementById("english-heard");
-  const greekResult = document.getElementById("greek-result");
-  const speakResultBtn = document.getElementById("speak-result-btn");
-  const clearResultBtn = document.getElementById("clear-result-btn");
-
-  if (!recognitionSupported) {
-    statusEl.textContent = "Speech recognition not supported in this browser (try Chrome or Edge)";
-    micBtn.disabled = true;
-    return;
-  }
-
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 3;
-  recognition.continuous = false;
-
-  micBtn.addEventListener("click", () => {
-    if (isListening) {
-      recognition.stop();
-      return;
-    }
-    startListening();
-  });
-
-  recognition.onstart = () => {
-    isListening = true;
-    micBtn.classList.add("listening");
-    micBtn.textContent = "⏹️";
-    statusEl.textContent = "Listening... speak now";
-    resultBox.classList.remove("show");
-  };
-
-  recognition.onend = () => {
-    isListening = false;
-    micBtn.classList.remove("listening");
-    micBtn.textContent = "🎤";
-    if (!englishHeard.textContent) {
-      statusEl.textContent = "Tap the mic and speak an English phrase";
-    }
-  };
-
-  recognition.onerror = (e) => {
-    console.warn("Recognition error:", e.error);
-    statusEl.textContent = e.error === "no-speech" 
-      ? "No speech detected. Try again." 
-      : "Error: " + e.error;
-    isListening = false;
-    micBtn.classList.remove("listening");
-    micBtn.textContent = "🎤";
-  };
-
-  recognition.onresult = async (event) => {
-    const transcript = event.results[0][0].transcript.trim();
-    statusEl.textContent = "Processing...";
-
-    englishHeard.textContent = transcript;
-    resultBox.classList.add("show");
-
-    // 1. Try to match against existing phrases first (Option B)
-    const match = findBestPhraseMatch(transcript);
-
-    if (match) {
-      greekResult.textContent = match.gr;
-      statusEl.textContent = "Matched existing phrase ✓";
-    } else {
-      // 2. Fallback to MyMemory translation
-      try {
-        const translated = await translateWithMyMemory(transcript);
-        greekResult.textContent = translated || "Translation failed";
-        statusEl.textContent = "Translated with MyMemory";
-      } catch (err) {
-        console.error(err);
-        greekResult.textContent = "Translation error";
-        statusEl.textContent = "Could not translate. Check internet connection.";
-      }
-    }
-  };
-
-  // Speak the Greek result
-  speakResultBtn.addEventListener("click", () => {
-    const greek = greekResult.textContent;
-    if (greek && greek !== "Translation failed" && greek !== "Translation error") {
-      speakPhrase("", greek, speakResultBtn);
-    }
-  });
-
-  clearResultBtn.addEventListener("click", () => {
-    resultBox.classList.remove("show");
-    englishHeard.textContent = "";
-    greekResult.textContent = "";
-    statusEl.textContent = "Tap the mic and speak an English phrase";
-  });
-}
-
-function startListening() {
-  try {
-    recognition.start();
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-// Fuzzy match against existing phrases
-function findBestPhraseMatch(spoken) {
-  const spokenLower = spoken.toLowerCase().replace(/[?.!,]/g, "").trim();
-  
-  let bestMatch = null;
-  let bestScore = 0;
-
-  data.forEach(cat => {
-    cat.phrases.forEach(p => {
-      const enLower = p.en.toLowerCase().replace(/[?.!,]/g, "").trim();
-      
-      // Exact or contains match
-      if (enLower === spokenLower || enLower.includes(spokenLower) || spokenLower.includes(enLower)) {
-        const score = Math.min(enLower.length, spokenLower.length) / Math.max(enLower.length, spokenLower.length);
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = p;
-        }
-      }
-    });
-  });
-
-  // Only accept reasonably good matches
-  return bestScore > 0.45 ? bestMatch : null;
-}
-
-// Free MyMemory translation (no API key needed)
-async function translateWithMyMemory(text) {
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|el`;
-  const res = await fetch(url);
-  const data = await res.json();
-  
-  if (data.responseStatus === 200 && data.responseData) {
-    return data.responseData.translatedText;
-  }
-  throw new Error("Translation failed");
-}
-
 // ========== STATE ==========
 let activeCategory = "All";
 let showFavoritesOnly = false;
@@ -388,7 +236,6 @@ function copyPronunciation(text, btn) {
 // ========== SPEECH SYNTHESIS ==========
 function loadVoices() {
   voices = speechSynthesis.getVoices();
-
   greekVoice = voices.find(v => {
     const lang = (v.lang || "").replace("_", "-").toLowerCase();
     return lang === "el-gr" || lang === "el";
@@ -407,7 +254,7 @@ if (ttsSupported) {
 
 function speakPhrase(english, greek, btn) {
   if (!ttsSupported) {
-    alert("Text-to-speech is not supported in this browser.\nPlease try Chrome, Edge, Safari or Firefox.");
+    alert("Text-to-speech is not supported in this browser.");
     return;
   }
 
@@ -439,39 +286,27 @@ function speakPhrase(english, greek, btn) {
   };
 
   if (speakEnglishFirst && english) {
-    // Speak English first, then Greek
     const enUtterance = makeUtterance(english, "en-US");
-
     enUtterance.onend = () => {
       setTimeout(() => {
         const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
         grUtterance.onend = finish;
-        grUtterance.onerror = (e) => {
-          console.warn("Greek speech error:", e.error);
-          finish();
-        };
+        grUtterance.onerror = finish;
         speechSynthesis.speak(grUtterance);
       }, 350);
     };
-
     enUtterance.onerror = () => {
-      // Fallback: just speak Greek
       const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
       grUtterance.onend = finish;
       speechSynthesis.speak(grUtterance);
     };
-
     speechSynthesis.speak(enUtterance);
   } else {
-    // Only Greek
     const grUtterance = makeUtterance(greek, "el-GR", greekVoice);
     grUtterance.onend = finish;
     grUtterance.onerror = (e) => {
       console.warn("Speech error:", e.error);
       finish();
-      if (e.error === "language-unavailable" || e.error === "voice-unavailable") {
-        alert("No Greek voice available on this device.");
-      }
     };
     speechSynthesis.speak(grUtterance);
   }
@@ -485,7 +320,6 @@ function createRateControl() {
     <span>Speed</span>
     <input type="range" id="rate-slider" min="0.6" max="1.3" step="0.05" value="${speechRate}">
     <span class="rate-value" id="rate-value">${speechRate.toFixed(2)}×</span>
-    
     <label class="en-gr-toggle" title="Speak English first, then Greek">
       <input type="checkbox" id="en-gr-toggle">
       <span>EN → GR</span>
@@ -495,7 +329,6 @@ function createRateControl() {
   const searchEl = document.getElementById("search");
   searchEl.parentNode.insertBefore(container, searchEl.nextSibling);
 
-  // Rate slider
   const slider = document.getElementById("rate-slider");
   const valueLabel = document.getElementById("rate-value");
   slider.addEventListener("input", () => {
@@ -504,10 +337,8 @@ function createRateControl() {
     localStorage.setItem("greek-speech-rate", speechRate);
   });
 
-  // EN → GR toggle (saved)
   const enGrToggle = document.getElementById("en-gr-toggle");
   enGrToggle.checked = localStorage.getItem("greek-en-gr") === "true";
-
   enGrToggle.addEventListener("change", () => {
     localStorage.setItem("greek-en-gr", enGrToggle.checked);
   });
@@ -521,16 +352,151 @@ function showTtsStatus() {
     document.querySelector("header").appendChild(warn);
     return;
   }
-
   setTimeout(() => {
     loadVoices();
     if (!greekVoice) {
       const warn = document.createElement("div");
       warn.className = "tts-warning";
-      warn.innerHTML = "⚠️ No Greek voice detected. Speech may not work well on this device.";
+      warn.innerHTML = "⚠️ No Greek voice detected on this device.";
       document.querySelector("header").appendChild(warn);
     }
   }, 1200);
+}
+
+// ========== VOICE INPUT + TRANSLATE (Option B) ==========
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognitionSupported = !!SpeechRecognition;
+let recognition = null;
+let isListening = false;
+
+function initVoiceInput() {
+  const micBtn = document.getElementById("mic-btn");
+  const statusEl = document.getElementById("voice-status");
+  const resultBox = document.getElementById("voice-result");
+  const englishHeard = document.getElementById("english-heard");
+  const greekResult = document.getElementById("greek-result");
+  const speakResultBtn = document.getElementById("speak-result-btn");
+  const clearResultBtn = document.getElementById("clear-result-btn");
+
+  if (!micBtn) return; // HTML not present yet
+
+  if (!recognitionSupported) {
+    statusEl.textContent = "Speech recognition not supported (try Chrome or Edge)";
+    micBtn.disabled = true;
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 3;
+  recognition.continuous = false;
+
+  micBtn.addEventListener("click", () => {
+    if (isListening) {
+      recognition.stop();
+      return;
+    }
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add("listening");
+    micBtn.textContent = "⏹️";
+    statusEl.textContent = "Listening... speak now";
+    resultBox.classList.remove("show");
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+    if (!englishHeard.textContent) {
+      statusEl.textContent = "Tap the mic and speak an English phrase";
+    }
+  };
+
+  recognition.onerror = (e) => {
+    console.warn("Recognition error:", e.error);
+    statusEl.textContent = e.error === "no-speech" ? "No speech detected. Try again." : "Error: " + e.error;
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+  };
+
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    statusEl.textContent = "Processing...";
+    englishHeard.textContent = transcript;
+    resultBox.classList.add("show");
+
+    // 1. Try matching existing phrases first
+    const match = findBestPhraseMatch(transcript);
+    if (match) {
+      greekResult.textContent = match.gr;
+      statusEl.textContent = "Matched existing phrase ✓";
+    } else {
+      // 2. Fallback to MyMemory
+      try {
+        const translated = await translateWithMyMemory(transcript);
+        greekResult.textContent = translated || "Translation failed";
+        statusEl.textContent = "Translated with MyMemory";
+      } catch (err) {
+        console.error(err);
+        greekResult.textContent = "Translation error";
+        statusEl.textContent = "Could not translate. Check internet.";
+      }
+    }
+  };
+
+  speakResultBtn.addEventListener("click", () => {
+    const greek = greekResult.textContent;
+    if (greek && !greek.includes("failed") && !greek.includes("error")) {
+      speakPhrase("", greek, speakResultBtn);
+    }
+  });
+
+  clearResultBtn.addEventListener("click", () => {
+    resultBox.classList.remove("show");
+    englishHeard.textContent = "";
+    greekResult.textContent = "";
+    statusEl.textContent = "Tap the mic and speak an English phrase";
+  });
+}
+
+function findBestPhraseMatch(spoken) {
+  const spokenLower = spoken.toLowerCase().replace(/[?.!,]/g, "").trim();
+  let bestMatch = null;
+  let bestScore = 0;
+
+  data.forEach(cat => {
+    cat.phrases.forEach(p => {
+      const enLower = p.en.toLowerCase().replace(/[?.!,]/g, "").trim();
+      if (enLower === spokenLower || enLower.includes(spokenLower) || spokenLower.includes(enLower)) {
+        const score = Math.min(enLower.length, spokenLower.length) / Math.max(enLower.length, spokenLower.length);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = p;
+        }
+      }
+    });
+  });
+  return bestScore > 0.45 ? bestMatch : null;
+}
+
+async function translateWithMyMemory(text) {
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|el`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (json.responseStatus === 200 && json.responseData) {
+    return json.responseData.translatedText;
+  }
+  throw new Error("Translation failed");
 }
 
 // ========== RENDER ==========
@@ -590,11 +556,9 @@ function render() {
       `;
       section.appendChild(div);
     });
-
     main.appendChild(section);
   });
 
-  // Event listeners
   main.querySelectorAll(".fav-btn").forEach(btn => {
     btn.addEventListener("click", () => toggleFavorite(btn.dataset.en));
   });
